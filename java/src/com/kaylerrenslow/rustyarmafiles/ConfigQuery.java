@@ -24,6 +24,11 @@ public class ConfigQuery {
 	}
 
 	@NotNull
+	public static CompiledQuery parseArmaFormatQuery(@NotNull String query) throws ParseException {
+		return new ArmaFormatQueryParser(query).parse();
+	}
+
+	@NotNull
 	public ResultRootNode query(@NotNull ConfigStream stream) {
 		if (queryRootNode == null) {
 			throw new IllegalStateException();
@@ -88,6 +93,78 @@ public class ConfigQuery {
 		return resultRootNode;
 	}
 
+	private static class ArmaFormatQueryParser {
+		private final String query;
+
+		public ArmaFormatQueryParser(@NotNull String query) {
+			this.query = query;
+		}
+
+		@NotNull
+		public CompiledQuery parse() throws ParseException {
+			int wordLength = 0;
+			int wordStartIndex = 0;
+			boolean expectOperator = true;
+			int bracketCount = 0;
+			boolean expectWord = true;
+
+			QueryNode currentNode = new QueryNode();
+			QueryNode start = currentNode;
+
+			for (int i = 0; i < query.length(); i++) {
+				char c = query.charAt(i);
+				if (Character.isWhitespace(c)) {
+					if (wordLength > 0) {
+						expectOperator = true;
+					} else {
+						wordStartIndex++;
+					}
+					continue;
+				}
+				if (c == '>') {
+					if (expectWord) {
+						throw new ParseException("expected a word, got >", i);
+					}
+					bracketCount++;
+					if (bracketCount > 2) {
+						throw new ParseException("expected word, got >", i);
+					}
+					if (bracketCount == 2) {
+						expectOperator = false;
+						String word = query.substring(wordStartIndex, wordLength + 1);
+
+						//match either class or assignment since the >> in arma 3 matches entry name and doesn't care about type
+						QueryNode oldNode = currentNode;
+						currentNode = new QueryNode();
+						oldNode.addChildClass(word, currentNode);
+						oldNode.addAssignmentToMatch(word);
+						expectWord = true;
+					} else {
+						expectOperator = true;
+						expectWord = false;
+					}
+					continue;
+				}
+				if (!Character.isAlphabetic(c)) {
+					throw new ParseException("Unexpected token: " + c, i);
+				}
+				wordLength++;
+				expectWord = false;
+			}
+			if(expectOperator) {
+				throw new ParseException("Unexpected >", query.length());
+			}
+			if(wordLength > 0) {
+				String word = query.substring(wordStartIndex, wordLength + 1);
+
+				//match either class or assignment since the >> in arma 3 matches entry name and doesn't care about type
+				currentNode.addChildClass(word, currentNode);
+				currentNode.addAssignmentToMatch(word);
+			}
+			return new CompiledQuery(start);
+		}
+	}
+
 	private static class PatternParser {
 		private final String query;
 
@@ -99,7 +176,7 @@ public class ConfigQuery {
 		public CompiledQuery parse() throws ParseException {
 			int rbracketCount = 0;
 			int lbracketCount = 0;
-			boolean anticipateOperator = false;
+			boolean expectOperator = false;
 
 			int wordStartIndex = 0;
 			int wordLength = 0;
@@ -115,7 +192,7 @@ public class ConfigQuery {
 				char c = query.charAt(i);
 				if (Character.isWhitespace(c)) {
 					if (wordLength > 0) {
-						anticipateOperator = true;
+						expectOperator = true;
 					} else {
 						wordStartIndex++;
 					}
@@ -125,7 +202,7 @@ public class ConfigQuery {
 					if (wordLength <= 0) {
 						throw new ParseException("missing class name", i);
 					}
-					anticipateOperator = false;
+					expectOperator = false;
 					String word = query.substring(wordStartIndex, wordLength + 1);
 					QueryNode peek = nodeStack.peek();
 					if (word.equals("*")) {
@@ -142,7 +219,7 @@ public class ConfigQuery {
 					if (wordLength <= 0) {
 						throw new ParseException("missing assignment name", i);
 					}
-					anticipateOperator = false;
+					expectOperator = false;
 					QueryNode peek = nodeStack.peek();
 					String word = query.substring(wordStartIndex, wordLength + 1);
 					if (word.equals("*")) {
@@ -157,14 +234,17 @@ public class ConfigQuery {
 					if (lbracketCount < rbracketCount) {
 						throw new ParseException("unexpected }", i);
 					}
-					anticipateOperator = false;
+					expectOperator = false;
 					rbracketCount++;
 					wordLength = 0;
 					wordStartIndex = i + 1;
 					nodeStack.pop();
 				} else {
-					if (anticipateOperator) {
+					if (expectOperator) {
 						throw new ParseException("Expected bracket or comma but got whitespace", i);
+					}
+					if (!Character.isAlphabetic(c)) {
+						throw new ParseException("Unexpected token: " + c, i);
 					}
 					wordLength++;
 				}
@@ -379,5 +459,7 @@ public class ConfigQuery {
 			return new CompiledQuery(startBuilder.parent);
 		}
 
+
 	}
+
 }
