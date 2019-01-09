@@ -23,7 +23,7 @@ public class ConfigQuery {
 	}
 
 	@NotNull
-	public ResultRootNode match(@NotNull ConfigStream stream) {
+	public ResultRootNode query(@NotNull ConfigStream stream) {
 		if (queryRootNode == null) {
 			throw new IllegalStateException();
 		}
@@ -115,7 +115,9 @@ public class ConfigQuery {
 			for (int i = 0; i < query.length(); i++) {
 				char c = query.charAt(i);
 				if (Character.isWhitespace(c)) {
-					anticipateOperator = true;
+					if (wordLength > 0) {
+						anticipateOperator = true;
+					}
 					continue;
 				}
 				if (c == '{') {
@@ -123,16 +125,15 @@ public class ConfigQuery {
 						throw new ParseException("missing class name", i);
 					}
 					anticipateOperator = false;
-					QueryNode node;
 					String word = query.substring(wordStartIndex, wordLength + 1);
-					if (word.equals("*")) {
-						node = new AlwaysMatchClassNameQueryNode();
-					} else {
-						node = new QueryNode();
-					}
-
 					QueryNode peek = nodeStack.peek();
+					if (word.equals("*")) {
+						peek.matchAllClasses();
+					}
+					QueryNode node = new QueryNode();
 					peek.addChildClass(word, node);
+					nodeStack.push(node);
+
 					wordLength = 0;
 					wordStartIndex = i + 1;
 					lbracketCount++;
@@ -184,27 +185,17 @@ public class ConfigQuery {
 	}
 
 	private static class ResultNode {
-		private final Map<String, ConfigValue> assignments = new HashMap<>();
-		private final Map<String, ClassResultNode> classes = new HashMap<>();
+		final Map<String, ConfigValue> assignments = new HashMap<>();
+		final Map<String, ClassResultNode> classes = new HashMap<>();
 
-		@NotNull
+		@Nullable
 		public ConfigValue getAssignmentValue(@NotNull String key) {
-			ConfigValue val = assignments.get(key);
-			if (val == null) {
-				throw new IllegalArgumentException();
-			}
-			return val;
+			return assignments.get(key);
 		}
 
-		@NotNull
+		@Nullable
 		public ConfigQuery.ClassResultNode getClassNode(@NotNull String key) {
-			ClassResultNode node = classes.get(key);
-
-			if (node == null) {
-				throw new IllegalArgumentException();
-			}
-
-			return node;
+			return classes.get(key);
 		}
 
 		void putAssignment(@NotNull String key, @NotNull ConfigValue value) {
@@ -212,7 +203,10 @@ public class ConfigQuery {
 		}
 
 		void putChildClassNode(@NotNull ConfigQuery.ClassResultNode node) {
-			classes.put(node.className, node);
+			classes.merge(node.className, node, (classResultNode, classResultNode2) -> {
+				classResultNode.merge(classResultNode2);
+				return classResultNode;
+			});
 		}
 	}
 
@@ -227,7 +221,18 @@ public class ConfigQuery {
 		public String getClassName() {
 			return className;
 		}
+
+		void merge(@NotNull ClassResultNode other) {
+			assignments.putAll(other.assignments);
+			other.classes.forEach((s, myChildNode) -> {
+				ClassResultNode otherChild = other.getClassNode(s);
+				if (otherChild != null) {
+					myChildNode.merge(otherChild);
+				}
+			});
+		}
 	}
+
 
 	public static class ResultRootNode extends ResultNode {
 
@@ -241,7 +246,7 @@ public class ConfigQuery {
 		}
 
 		@NotNull
-		public QueryNode getNode() {
+		QueryNode getNode() {
 			return node;
 		}
 	}
@@ -250,6 +255,7 @@ public class ConfigQuery {
 		private final Map<String, QueryNode> children = new HashMap<>();
 		private final Set<String> assignments = new HashSet<>();
 		private boolean matchAllAssignments = false;
+		private boolean matchAllClasses = false;
 
 		private final Set<String> classNames = new HashSet<>();
 
@@ -262,7 +268,7 @@ public class ConfigQuery {
 		}
 
 		public boolean containsClassName(@NotNull String key) {
-			return classNames.contains(key);
+			return matchAllClasses || classNames.contains(key);
 		}
 
 		public void addChildClass(@NotNull String className, @NotNull QueryNode node) {
@@ -273,26 +279,17 @@ public class ConfigQuery {
 			assignments.add(key);
 		}
 
-		void matchAllAssignments() {
+		public void matchAllAssignments() {
 			this.matchAllAssignments = true;
+		}
+
+		public void matchAllClasses() {
+			this.matchAllClasses = true;
 		}
 
 		public boolean containsAssignmentKey(@NotNull String key) {
 			return matchAllAssignments || assignments.contains(key);
 		}
-	}
-
-	private static class AlwaysMatchClassNameQueryNode extends QueryNode {
-
-		public AlwaysMatchClassNameQueryNode() {
-			super();
-		}
-
-		@Override
-		public boolean containsClassName(@NotNull String key) {
-			return true;
-		}
-
 	}
 
 	private static final QueryNode SKIP = new QueryNode();
@@ -322,11 +319,22 @@ public class ConfigQuery {
 		}
 
 		@NotNull
+		public ConfigQueryPatternBuilder matchAllClasses() {
+			parent.matchAllClasses();
+			return this;
+		}
+
+		@NotNull
+		public ConfigQueryPatternBuilder matchAllClassesAndEnter() {
+			parent.matchAllClasses();
+			return new ConfigQueryPatternBuilder(new QueryNode(), this, startBuilder);
+		}
+
+		@NotNull
 		public ConfigQueryPatternBuilder matchClass(@NotNull String name) {
 			QueryNode child = new QueryNode();
-			ConfigQueryPatternBuilder builder = new ConfigQueryPatternBuilder(child, this, startBuilder);
 			parent.children.put(name, child);
-			return builder;
+			return this;
 		}
 
 		@NotNull
@@ -360,12 +368,18 @@ public class ConfigQuery {
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder leaveClass(){
+		public ConfigQueryPatternBuilder matchAllAssignments() {
+			parent.matchAllAssignments();
+			return this;
+		}
+
+		@NotNull
+		public ConfigQueryPatternBuilder leaveClass() {
 			return this.parentBuilder;
 		}
 
 		@NotNull
-		public ConfigQuery.CompiledQuery compile(){
+		public ConfigQuery.CompiledQuery compile() {
 			return new CompiledQuery(startBuilder.parent);
 		}
 
