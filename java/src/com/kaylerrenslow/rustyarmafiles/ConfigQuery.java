@@ -12,17 +12,14 @@ import java.util.*;
 public class ConfigQuery {
 
 	private QueryNode queryRootNode;
-	private final String query;
 
-	public ConfigQuery(@NotNull String query) {
-		this.query = query;
+	public ConfigQuery(@NotNull ConfigQuery.CompiledQuery query) {
+		this.queryRootNode = query.getNode();
 	}
 
-	public void parseQuery() throws ParseException {
-		if (queryRootNode != null) {
-			return;
-		}
-		queryRootNode = new PatternParser(query).parse();
+	@NotNull
+	public static CompiledQuery parseQuery(@NotNull String query) throws ParseException {
+		return new PatternParser(query).parse();
 	}
 
 	@NotNull
@@ -48,7 +45,7 @@ public class ConfigQuery {
 						continue;
 					}
 					ConfigStreamItem.ClassItem classItem = (ConfigStreamItem.ClassItem) advancedItem;
-					if (queryNode.classNameMatches(classItem.getClassName())) {
+					if (queryNode.containsClassName(classItem.getClassName())) {
 						ClassResultNode classNode = new ClassResultNode(classItem.getClassName());
 						resultNode.putChildClassNode(classNode);
 					}
@@ -100,7 +97,7 @@ public class ConfigQuery {
 		}
 
 		@NotNull
-		public ConfigQuery.QueryNode parse() throws ParseException {
+		public CompiledQuery parse() throws ParseException {
 			int rbracketCount = 0;
 			int lbracketCount = 0;
 			boolean anticipateOperator = false;
@@ -109,7 +106,7 @@ public class ConfigQuery {
 			int wordLength = 0;
 
 			Stack<QueryNode> nodeStack = new Stack<>();
-			QueryNode rootNode = null;
+			nodeStack.push(new QueryNode());
 
 			if (query.length() <= 0) {
 				throw new ParseException("query is empty", 0);
@@ -126,24 +123,16 @@ public class ConfigQuery {
 						throw new ParseException("missing class name", i);
 					}
 					anticipateOperator = false;
-					QueryNode node = null;
-					if (wordLength == 1) {
-						if (query.charAt(wordStartIndex) == '*') {
-							node = new AlwaysMatchQueryNode();
-						} else {
-							node = new QueryNode(query.charAt(wordStartIndex) + "");
-						}
+					QueryNode node;
+					String word = query.substring(wordStartIndex, wordLength + 1);
+					if (word.equals("*")) {
+						node = new AlwaysMatchClassNameQueryNode();
 					} else {
-						node = new QueryNode(query.substring(wordStartIndex, wordLength + 1));
+						node = new QueryNode();
 					}
 
-					if (nodeStack.isEmpty()) {
-						nodeStack.add(node);
-						rootNode = node;
-					} else {
-						QueryNode peek = nodeStack.peek();
-						peek.addChild(node);
-					}
+					QueryNode peek = nodeStack.peek();
+					peek.addChildClass(word, node);
 					wordLength = 0;
 					wordStartIndex = i + 1;
 					lbracketCount++;
@@ -152,20 +141,10 @@ public class ConfigQuery {
 						throw new ParseException("missing assignment name", i);
 					}
 					anticipateOperator = false;
-					String word = query.substring(wordStartIndex, wordLength + 1);
-					if (nodeStack.isEmpty()) {
-						/* example config where this happens
-						field=1; //right here
-						class MyClass; //another class could also come after
-						*/
-						QueryNode node = new AlwaysMatchQueryNode();
-						nodeStack.push(node);
-						rootNode = node;
-					}
-
 					QueryNode peek = nodeStack.peek();
+					String word = query.substring(wordStartIndex, wordLength + 1);
 					if (word.equals("*")) {
-						peek.setMatchAllAssignments(true);
+						peek.matchAllAssignments();
 					} else {
 						peek.addAssignmentToMatch(word);
 					}
@@ -191,15 +170,16 @@ public class ConfigQuery {
 			if (lbracketCount > rbracketCount) {
 				throw new ParseException("too few }", query.length());
 			}
-			if (rootNode == null) {
-				rootNode = new AlwaysMatchQueryNode();
+			QueryNode rootNode = nodeStack.peek();
+			if (wordLength > 0) {
 				if (query.equals("*")) {
-					rootNode.setMatchAllAssignments(true);
+					rootNode.matchAllAssignments();
 				} else {
-					rootNode.addAssignmentToMatch(query);
+					//don't add whole query because there may be whitespace
+					rootNode.addAssignmentToMatch(query.substring(wordStartIndex, wordLength + 1));
 				}
 			}
-			return rootNode;
+			return new CompiledQuery(rootNode);
 		}
 	}
 
@@ -253,15 +233,27 @@ public class ConfigQuery {
 
 	}
 
+	public static class CompiledQuery {
+		private final QueryNode node;
+
+		private CompiledQuery(@NotNull QueryNode node) {
+			this.node = node;
+		}
+
+		@NotNull
+		public QueryNode getNode() {
+			return node;
+		}
+	}
+
 	private static class QueryNode {
 		private final Map<String, QueryNode> children = new HashMap<>();
-		private final Set<String> assignmentsToMatch = new HashSet<>();
+		private final Set<String> assignments = new HashSet<>();
 		private boolean matchAllAssignments = false;
 
-		private final String classNameToMatch;
+		private final Set<String> classNames = new HashSet<>();
 
-		public QueryNode(@NotNull String keyToMatch) {
-			this.classNameToMatch = keyToMatch;
+		public QueryNode() {
 		}
 
 		@Nullable
@@ -269,41 +261,113 @@ public class ConfigQuery {
 			return children.get(key);
 		}
 
-		public boolean classNameMatches(@NotNull String key) {
-			return classNameToMatch.equals(key);
+		public boolean containsClassName(@NotNull String key) {
+			return classNames.contains(key);
 		}
 
-		public void addChild(@NotNull QueryNode node) {
-			children.put(node.classNameToMatch, node);
+		public void addChildClass(@NotNull String className, @NotNull QueryNode node) {
+			children.put(className, node);
 		}
 
 		public void addAssignmentToMatch(@NotNull String key) {
-			assignmentsToMatch.add(key);
+			assignments.add(key);
 		}
 
-		void setMatchAllAssignments(boolean matchAllAssignments) {
-			this.matchAllAssignments = matchAllAssignments;
+		void matchAllAssignments() {
+			this.matchAllAssignments = true;
 		}
 
 		public boolean containsAssignmentKey(@NotNull String key) {
-			return matchAllAssignments || assignmentsToMatch.contains(key);
+			return matchAllAssignments || assignments.contains(key);
 		}
 	}
 
-	private static class AlwaysMatchQueryNode extends QueryNode {
+	private static class AlwaysMatchClassNameQueryNode extends QueryNode {
 
-		public AlwaysMatchQueryNode() {
-			super("");
+		public AlwaysMatchClassNameQueryNode() {
+			super();
 		}
 
 		@Override
-		public boolean classNameMatches(@NotNull String key) {
+		public boolean containsClassName(@NotNull String key) {
 			return true;
 		}
 
 	}
 
-	private static final QueryNode SKIP = new QueryNode("");
+	private static final QueryNode SKIP = new QueryNode();
 
+	public static class ConfigQueryPatternBuilder {
 
+		private final ConfigQueryPatternBuilder startBuilder;
+		private final ConfigQueryPatternBuilder parentBuilder;
+		private final QueryNode parent;
+
+		private ConfigQueryPatternBuilder(@NotNull QueryNode parent) {
+			this.parent = parent;
+			this.parentBuilder = this;
+			this.startBuilder = this;
+		}
+
+		@NotNull
+		private ConfigQueryPatternBuilder(@NotNull QueryNode parent, @NotNull ConfigQueryPatternBuilder parentBuilder, @NotNull ConfigQueryPatternBuilder startBuilder) {
+			this.parent = parent;
+			this.parentBuilder = parentBuilder;
+			this.startBuilder = startBuilder;
+		}
+
+		@NotNull
+		public static ConfigQueryPatternBuilder start() {
+			return new ConfigQueryPatternBuilder(new QueryNode());
+		}
+
+		@NotNull
+		public ConfigQueryPatternBuilder matchClass(@NotNull String name) {
+			QueryNode child = new QueryNode();
+			ConfigQueryPatternBuilder builder = new ConfigQueryPatternBuilder(child, this, startBuilder);
+			parent.children.put(name, child);
+			return builder;
+		}
+
+		@NotNull
+		public ConfigQueryPatternBuilder matchClasses(@NotNull String... names) {
+			QueryNode child = new QueryNode();
+			for (String name : names) {
+				parent.children.put(name, child);
+			}
+			return this;
+		}
+
+		@NotNull
+		public ConfigQueryPatternBuilder matchClassAndEnter(@NotNull String name) {
+			QueryNode child = new QueryNode();
+			parent.children.put(name, child);
+			return new ConfigQueryPatternBuilder(child, this, startBuilder);
+		}
+
+		@NotNull
+		public ConfigQueryPatternBuilder matchAssignment(@NotNull String name) {
+			parent.assignments.add(name);
+			return this;
+		}
+
+		@NotNull
+		public ConfigQueryPatternBuilder matchAssignments(@NotNull String... names) {
+			for (String name : names) {
+				parent.assignments.add(name);
+			}
+			return this;
+		}
+
+		@NotNull
+		public ConfigQueryPatternBuilder leaveClass(){
+			return this.parentBuilder;
+		}
+
+		@NotNull
+		public ConfigQuery.CompiledQuery compile(){
+			return new CompiledQuery(startBuilder.parent);
+		}
+
+	}
 }
