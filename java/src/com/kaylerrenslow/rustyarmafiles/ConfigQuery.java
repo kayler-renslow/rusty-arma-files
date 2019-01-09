@@ -280,51 +280,51 @@ public class ConfigQuery {
 		}
 	}
 
-	public static class ConfigQueryPatternBuilder {
+	public static class ConfigQueryBuilder {
 
-		private final ConfigQueryPatternBuilder startBuilder;
-		private final ConfigQueryPatternBuilder parentBuilder;
+		private final ConfigQueryBuilder startBuilder;
+		private final ConfigQueryBuilder parentBuilder;
 		private final QueryNode parent;
 
-		private ConfigQueryPatternBuilder(@NotNull QueryNode parent) {
+		private ConfigQueryBuilder(@NotNull QueryNode parent) {
 			this.parent = parent;
 			this.parentBuilder = this;
 			this.startBuilder = this;
 		}
 
 		@NotNull
-		private ConfigQueryPatternBuilder(@NotNull QueryNode parent, @NotNull ConfigQueryPatternBuilder parentBuilder, @NotNull ConfigQueryPatternBuilder startBuilder) {
+		private ConfigQueryBuilder(@NotNull QueryNode parent, @NotNull ConfigQuery.ConfigQueryBuilder parentBuilder, @NotNull ConfigQuery.ConfigQueryBuilder startBuilder) {
 			this.parent = parent;
 			this.parentBuilder = parentBuilder;
 			this.startBuilder = startBuilder;
 		}
 
 		@NotNull
-		public static ConfigQueryPatternBuilder start() {
-			return new ConfigQueryPatternBuilder(new QueryNode());
+		public static ConfigQuery.ConfigQueryBuilder start() {
+			return new ConfigQueryBuilder(new QueryNode());
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder matchAllClasses() {
+		public ConfigQuery.ConfigQueryBuilder matchAllClasses() {
 			parent.matchAllClasses();
 			return this;
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder matchAllClassesAndEnter() {
+		public ConfigQuery.ConfigQueryBuilder matchAllClassesAndEnter() {
 			parent.matchAllClasses();
-			return new ConfigQueryPatternBuilder(new QueryNode(), this, startBuilder);
+			return new ConfigQueryBuilder(new QueryNode(), this, startBuilder);
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder matchClass(@NotNull String name) {
+		public ConfigQuery.ConfigQueryBuilder matchClass(@NotNull String name) {
 			QueryNode child = new QueryNode();
 			parent.children.put(name, child);
 			return this;
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder matchClasses(@NotNull String... names) {
+		public ConfigQuery.ConfigQueryBuilder matchClasses(@NotNull String... names) {
 			QueryNode child = new QueryNode();
 			for (String name : names) {
 				parent.children.put(name, child);
@@ -333,9 +333,9 @@ public class ConfigQuery {
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder matchClassesAndForEach(@NotNull Consumer<ConfigQueryPatternBuilder> visitor, @NotNull String... names) {
+		public ConfigQuery.ConfigQueryBuilder matchClassesAndForEach(@NotNull Consumer<ConfigQueryBuilder> visitor, @NotNull String... names) {
 			for (String name : names) {
-				ConfigQueryPatternBuilder builder = new ConfigQueryPatternBuilder(new QueryNode(), this, startBuilder);
+				ConfigQueryBuilder builder = new ConfigQueryBuilder(new QueryNode(), this, startBuilder);
 				parent.children.put(name, builder.parent);
 				visitor.accept(builder);
 			}
@@ -343,20 +343,20 @@ public class ConfigQuery {
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder matchClassAndEnter(@NotNull String name) {
+		public ConfigQuery.ConfigQueryBuilder matchClassAndEnter(@NotNull String name) {
 			QueryNode child = new QueryNode();
 			parent.children.put(name, child);
-			return new ConfigQueryPatternBuilder(child, this, startBuilder);
+			return new ConfigQueryBuilder(child, this, startBuilder);
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder matchAssignment(@NotNull String name) {
+		public ConfigQuery.ConfigQueryBuilder matchAssignment(@NotNull String name) {
 			parent.assignments.add(name);
 			return this;
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder matchAssignments(@NotNull String... names) {
+		public ConfigQuery.ConfigQueryBuilder matchAssignments(@NotNull String... names) {
 			for (String name : names) {
 				parent.assignments.add(name);
 			}
@@ -364,13 +364,13 @@ public class ConfigQuery {
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder matchAllAssignments() {
+		public ConfigQuery.ConfigQueryBuilder matchAllAssignments() {
 			parent.matchAllAssignments();
 			return this;
 		}
 
 		@NotNull
-		public ConfigQueryPatternBuilder leaveClass() {
+		public ConfigQuery.ConfigQueryBuilder leaveClass() {
 			return this.parentBuilder;
 		}
 
