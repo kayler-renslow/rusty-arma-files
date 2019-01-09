@@ -53,7 +53,7 @@ public class ConfigQuery {
 						continue;
 					}
 					ConfigStreamItem.ClassItem classItem = (ConfigStreamItem.ClassItem) advancedItem;
-					if (queryNode.keyToMatch.equals(classItem.getClassName())) {
+					if (queryNode.classNameMatches(classItem.getClassName())) {
 						ClassNode classNode = new ClassNode(classItem.getClassName());
 						resultNode.putChildClassNode(classNode);
 					}
@@ -68,11 +68,10 @@ public class ConfigQuery {
 					if (queryNode == null) {
 						queryNodeStack.push(SKIP);
 						break;
-					} else {
-						queryNodeStack.push(queryNode);
 					}
 					ClassNode child = new ClassNode(classItem.getClassName());
 					resultNodeStack.push(child);
+					queryNodeStack.push(queryNode);
 					break;
 				}
 				case Assignment: {
@@ -80,8 +79,8 @@ public class ConfigQuery {
 						continue;
 					}
 					ConfigStreamItem.AssignmentItem item = (ConfigStreamItem.AssignmentItem) advancedItem;
-					if (queryNode.keyToMatch.equals(item.getKey())) {
-						resultNode.putChildAssignmentNode(new AssignmentNode(item.getKey(), item.getValue()));
+					if (queryNode.containsAssignmentKey(item.getKey())) {
+						resultNode.putAssignment(item.getKey(), item.getValue());
 					}
 					break;
 				}
@@ -107,22 +106,111 @@ public class ConfigQuery {
 
 		@NotNull
 		public ConfigQuery.QueryNode parse() throws ParseException {
-			return null;
+			int rbracketCount = 0;
+			int lbracketCount = 0;
+
+			int wordStartIndex = 0;
+			int wordLength = 0;
+
+			Stack<QueryNode> nodeStack = new Stack<>();
+			QueryNode rootNode = null;
+
+			if (query.length() <= 0) {
+				throw new ParseException("query is empty", 0);
+			}
+
+			for (int i = 0; i < query.length(); i++) {
+				char c = query.charAt(i);
+				if (Character.isWhitespace(c)) {
+					throw new ParseException("whitespace not allowed", i);
+				}
+				if (c == '{') {
+					if (wordLength <= 0) {
+						throw new ParseException("missing class name", i);
+					}
+					QueryNode node = null;
+					if (wordLength == 1) {
+						if (query.charAt(wordStartIndex) == '*') {
+							node = new AlwaysMatchQueryNode();
+						} else {
+							node = new QueryNode(query.charAt(wordStartIndex) + "");
+						}
+					} else {
+						node = new QueryNode(query.substring(wordStartIndex, wordLength + 1));
+					}
+
+					if (nodeStack.isEmpty()) {
+						nodeStack.add(node);
+						rootNode = node;
+					} else {
+						QueryNode peek = nodeStack.peek();
+						peek.addChild(node);
+					}
+					wordLength = 0;
+					wordStartIndex = i + 1;
+					lbracketCount++;
+				} else if (c == ',') {
+					if (wordLength <= 0) {
+						throw new ParseException("missing assignment name", i);
+					}
+					String word = query.substring(wordStartIndex, wordLength + 1);
+					if (nodeStack.isEmpty()) {
+						/* example config where this happens
+						field=1; //right here
+						class MyClass; //another class could also come after
+						*/
+						QueryNode node = new AlwaysMatchQueryNode();
+						nodeStack.push(node);
+						rootNode = node;
+					}
+
+					QueryNode peek = nodeStack.peek();
+					if (word.equals("*")) {
+						peek.setMatchAllAssignments(true);
+					} else {
+						peek.addAssignmentToMatch(word);
+					}
+
+					wordLength = 0;
+					wordStartIndex = i + 1;
+				} else if (c == '}') {
+					rbracketCount++;
+					if (lbracketCount < rbracketCount) {
+						throw new ParseException("unexpected }", i);
+					}
+					wordLength = 0;
+					wordStartIndex = i + 1;
+					nodeStack.pop();
+				} else {
+					wordLength++;
+				}
+			}
+			if (lbracketCount > rbracketCount) {
+				throw new ParseException("too few }", query.length());
+			}
+			if (rootNode == null) {
+				rootNode = new AlwaysMatchQueryNode();
+				if (query.equals("*")) {
+					rootNode.setMatchAllAssignments(true);
+				} else {
+					rootNode.addAssignmentToMatch(query);
+				}
+			}
+			return rootNode;
 		}
 	}
 
 	private static class Node {
-		private final Map<String, AssignmentNode> assignments = new HashMap<>();
+		private final Map<String, String> assignments = new HashMap<>();
 		private final Map<String, ClassNode> classes = new HashMap<>();
 
 		@NotNull
-		public ConfigQuery.AssignmentNode getAssignmentNode(@NotNull String key) {
-			AssignmentNode node = assignments.get(key);
-
-			if (node == null) {
+		public String getAssignmentValue(@NotNull String key) {
+			String val = assignments.get(key);
+			if (val == null) {
 				throw new IllegalArgumentException();
 			}
-			return node;
+			return val;
 		}
 
 		@NotNull
@@ -136,9 +224,8 @@ public class ConfigQuery {
 			return node;
 		}
 
-
-		void putChildAssignmentNode(@NotNull ConfigQuery.AssignmentNode node) {
-			assignments.put(node.key, node);
+		void putAssignment(@NotNull String key, @NotNull String value) {
+			assignments.put(key, value);
 		}
 
 		void putChildClassNode(@NotNull ConfigQuery.ClassNode node) {
@@ -163,54 +250,54 @@ public class ConfigQuery {
 
 	}
 
-	public static class AssignmentNode extends Node {
-		private final String key;
-		private String matchedValue;
-
-		public AssignmentNode(@NotNull String key, @NotNull String matchedValue) {
-			this.key = key;
-			this.matchedValue = matchedValue;
-		}
-
-		@NotNull
-		public String getKey() {
-			return key;
-		}
-
-		@NotNull
-		public String getMatchedValue() {
-			return matchedValue;
-		}
-	}
-
 	private static class QueryNode {
 		private final Map<String, QueryNode> children = new HashMap<>();
-		private final String keyToMatch;
+		private final Set<String> assignmentsToMatch = new HashSet<>();
+		private boolean matchAllAssignments = false;
+
+		private final String classNameToMatch;
 
 		public QueryNode(@NotNull String keyToMatch) {
-			this.keyToMatch = keyToMatch;
+			this.classNameToMatch = keyToMatch;
 		}
 
 		@Nullable
 		public QueryNode childQueryNode(@NotNull String key) {
 			return children.get(key);
 		}
+
+		public boolean classNameMatches(@NotNull String key) {
+			return classNameToMatch.equals(key);
+		}
+
+		public void addChild(@NotNull QueryNode node) {
+			children.put(node.classNameToMatch, node);
+		}
+
+		public void addAssignmentToMatch(@NotNull String key) {
+			assignmentsToMatch.add(key);
+		}
+
+		void setMatchAllAssignments(boolean matchAllAssignments) {
+			this.matchAllAssignments = matchAllAssignments;
+		}
+
+		public boolean containsAssignmentKey(@NotNull String key) {
+			return matchAllAssignments || assignmentsToMatch.contains(key);
+		}
 	}
 
 	private static class AlwaysMatchQueryNode extends QueryNode {
 
-		private final QueryNode child;
-
-		public AlwaysMatchQueryNode(@NotNull QueryNode child) {
+		public AlwaysMatchQueryNode() {
 			super("");
-			this.child = child;
 		}
 
 		@Override
-		@NotNull
-		public QueryNode childQueryNode(@NotNull String key) {
-			return child;
+		public boolean classNameMatches(@NotNull String key) {
+			return true;
 		}
+
 	}
 
 	private static final QueryNode SKIP = new QueryNode("");
