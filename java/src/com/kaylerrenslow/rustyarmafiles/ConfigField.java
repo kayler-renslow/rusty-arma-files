@@ -5,8 +5,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  @author K
  @since 01/08/2019 */
-public interface ConfigAssignment {
+public interface ConfigField {
 	@NotNull String getKey();
 
-	@NotNull String getValue();
+	@NotNull ConfigFieldValue getValue();
 }

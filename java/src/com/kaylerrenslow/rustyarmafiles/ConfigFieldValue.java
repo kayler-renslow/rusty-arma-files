@@ -7,8 +7,8 @@ import java.util.List;
 /**
  @author K
  @since 01/08/2019 */
-public interface ConfigValue {
-	class Scalar implements ConfigValue {
+public interface ConfigFieldValue {
+	class Scalar implements ConfigFieldValue {
 		private final double value;
 
 		public Scalar(double value) {
@@ -20,15 +20,15 @@ public interface ConfigValue {
 		}
 	}
 
-	class Array implements ConfigValue {
-		private final List<ConfigValue> values;
+	class Array implements ConfigFieldValue {
+		private final List<ConfigFieldValue> values;
 
-		public Array(@NotNull List<ConfigValue> values) {
+		public Array(@NotNull List<ConfigFieldValue> values) {
 			this.values = values;
 		}
 
 		@NotNull
-		public List<ConfigValue> getValues() {
+		public List<ConfigFieldValue> getValues() {
 			return values;
 		}
 	}

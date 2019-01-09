@@ -44,7 +44,7 @@ public class ConfigQuery {
 				stream.skipCurrentClass();
 				continue;
 			}
-			ConfigStreamItem advancedItem = stream.advance();
+			ConfigStreamItem advancedItem = stream.next();
 			ResultNode resultNode = resultNodeStack.peek();
 			QueryNode queryNode = queryNodeStack.peek();
 			switch (advancedItem.getType()) {
@@ -186,11 +186,11 @@ public class ConfigQuery {
 	}
 
 	private static class ResultNode {
-		final Map<String, ConfigValue> assignments = new HashMap<>();
+		final Map<String, ConfigFieldValue> assignments = new HashMap<>();
 		final Map<String, ClassResultNode> classes = new HashMap<>();
 
 		@Nullable
-		public ConfigValue getAssignmentValue(@NotNull String key) {
+		public ConfigFieldValue getAssignmentValue(@NotNull String key) {
 			return assignments.get(key);
 		}
 
@@ -199,7 +199,7 @@ public class ConfigQuery {
 			return classes.get(key);
 		}
 
-		void putAssignment(@NotNull String key, @NotNull ConfigValue value) {
+		void putAssignment(@NotNull String key, @NotNull ConfigFieldValue value) {
 			assignments.put(key, value);
 		}
 

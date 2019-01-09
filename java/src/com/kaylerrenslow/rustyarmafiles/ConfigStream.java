@@ -7,7 +7,7 @@ import org.jetbrains.annotations.NotNull;
  @since 01/08/2019 */
 public interface ConfigStream {
 	@NotNull
-	ConfigStreamItem advance() throws IllegalStateException;
+	ConfigStreamItem next() throws IllegalStateException;
 
 	boolean hasNext();
 
