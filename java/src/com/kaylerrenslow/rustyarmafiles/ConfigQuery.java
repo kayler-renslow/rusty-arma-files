@@ -35,48 +35,46 @@ public class ConfigQuery {
 
 		queryNodeStack.push(queryRootNode);
 
+		boolean skipClass = false;
+
 		while (stream.hasNext()) {
+			if (skipClass) {
+				skipClass = false;
+				stream.skipCurrentClass();
+				continue;
+			}
 			ConfigStreamItem advancedItem = stream.advance();
 			ResultNode resultNode = resultNodeStack.peek();
 			QueryNode queryNode = queryNodeStack.peek();
 			switch (advancedItem.getType()) {
+				// stream will always read assignments first,
+				// then for each embedded class: read those assignments first, etc (recursion man)
 				case Class: {
-					if (queryNode == SKIP) {
-						continue;
-					}
 					ConfigStreamItem.ClassItem classItem = (ConfigStreamItem.ClassItem) advancedItem;
 					if (queryNode.containsClassName(classItem.getClassName())) {
 						ClassResultNode classNode = new ClassResultNode(classItem.getClassName());
 						resultNode.putChildClassNode(classNode);
 					}
-					break;
-				}
-				case SubClass: {
-					if (queryNode == SKIP) {
-						continue;
-					}
-					ConfigStreamItem.SubClassItem classItem = (ConfigStreamItem.SubClassItem) advancedItem;
 					queryNode = queryNode.childQueryNode(classItem.getClassName());
 					if (queryNode == null) {
-						queryNodeStack.push(SKIP);
+						skipClass = true;
 						break;
 					}
-					ClassResultNode child = new ClassResultNode(classItem.getClassName());
-					resultNodeStack.push(child);
+					resultNodeStack.push(resultNode);
 					queryNodeStack.push(queryNode);
 					break;
 				}
 				case Assignment: {
-					if (queryNode == SKIP) {
-						continue;
-					}
 					ConfigStreamItem.AssignmentItem item = (ConfigStreamItem.AssignmentItem) advancedItem;
 					if (queryNode.containsAssignmentKey(item.getKey())) {
 						resultNode.putAssignment(item.getKey(), item.getValue());
 					}
 					break;
 				}
-				case EndSubClass: {
+				case ClassSkipDone: {
+					break;
+				}
+				case EndClass: {
 					resultNodeStack.pop();
 					queryNodeStack.pop();
 					break;
@@ -117,6 +115,8 @@ public class ConfigQuery {
 				if (Character.isWhitespace(c)) {
 					if (wordLength > 0) {
 						anticipateOperator = true;
+					} else {
+						wordStartIndex++;
 					}
 					continue;
 				}
@@ -203,10 +203,7 @@ public class ConfigQuery {
 		}
 
 		void putChildClassNode(@NotNull ConfigQuery.ClassResultNode node) {
-			classes.merge(node.className, node, (classResultNode, classResultNode2) -> {
-				classResultNode.merge(classResultNode2);
-				return classResultNode;
-			});
+			classes.put(node.className, node);
 		}
 	}
 
@@ -220,16 +217,6 @@ public class ConfigQuery {
 		@NotNull
 		public String getClassName() {
 			return className;
-		}
-
-		void merge(@NotNull ClassResultNode other) {
-			assignments.putAll(other.assignments);
-			other.classes.forEach((s, myChildNode) -> {
-				ClassResultNode otherChild = other.getClassNode(s);
-				if (otherChild != null) {
-					myChildNode.merge(otherChild);
-				}
-			});
 		}
 	}
 
@@ -291,8 +278,6 @@ public class ConfigQuery {
 			return matchAllAssignments || assignments.contains(key);
 		}
 	}
-
-	private static final QueryNode SKIP = new QueryNode();
 
 	public static class ConfigQueryPatternBuilder {
 

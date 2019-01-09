@@ -10,4 +10,6 @@ public interface ConfigStream {
 	ConfigStreamItem advance() throws IllegalStateException;
 
 	boolean hasNext();
+
+	void skipCurrentClass();
 }

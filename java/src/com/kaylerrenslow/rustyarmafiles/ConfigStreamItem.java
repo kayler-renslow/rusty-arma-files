@@ -7,7 +7,7 @@ import org.jetbrains.annotations.NotNull;
  @since 01/08/2019 */
 public interface ConfigStreamItem {
 	enum Type {
-		Class, SubClass, EndSubClass, Assignment
+		Class, EndClass, Assignment, ClassSkipDone
 	}
 
 	@NotNull Type getType();
@@ -32,35 +32,29 @@ public interface ConfigStreamItem {
 		}
 	}
 
-	class SubClassItem implements ConfigStreamItem {
-		private final String className;
+	class EndClassItem implements ConfigStreamItem {
+		public static final EndClassItem INSTANCE = new EndClassItem();
 
-		public SubClassItem(@NotNull String className) {
-			this.className = className;
-		}
-
-		@NotNull
-		public String getClassName() {
-			return className;
+		private EndClassItem() {
 		}
 
 		@Override
 		@NotNull
 		public Type getType() {
-			return Type.SubClass;
+			return Type.EndClass;
 		}
 	}
 
-	class EndSubClassMarker implements ConfigStreamItem {
-		public static final EndSubClassMarker INSTANCE = new EndSubClassMarker();
+	class ClassSkipDoneMarker implements ConfigStreamItem {
+		public static final ClassSkipDoneMarker INSTANCE = new ClassSkipDoneMarker();
 
-		private EndSubClassMarker() {
+		private ClassSkipDoneMarker() {
 		}
 
 		@Override
 		@NotNull
 		public Type getType() {
-			return Type.EndSubClass;
+			return Type.ClassSkipDone;
 		}
 	}
 
