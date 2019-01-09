@@ -154,6 +154,9 @@ public class ConfigQuery {
 			if(expectOperator) {
 				throw new ParseException("Unexpected >", query.length());
 			}
+			if(expectWord) {
+				throw new ParseException("Expected a word", query.length());
+			}
 			if(wordLength > 0) {
 				String word = query.substring(wordStartIndex, wordLength + 1);
 
