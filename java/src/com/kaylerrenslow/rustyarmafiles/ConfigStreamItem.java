@@ -66,9 +66,9 @@ public interface ConfigStreamItem {
 
 	class AssignmentItem implements ConfigStreamItem {
 		private final String key;
-		private final String value;
+		private final ConfigValue value;
 
-		public AssignmentItem(@NotNull String key, @NotNull String value) {
+		public AssignmentItem(@NotNull String key, @NotNull ConfigValue value) {
 			this.key = key;
 			this.value = value;
 		}
@@ -79,7 +79,7 @@ public interface ConfigStreamItem {
 		}
 
 		@NotNull
-		public String getValue() {
+		public ConfigValue getValue() {
 			return value;
 		}
 

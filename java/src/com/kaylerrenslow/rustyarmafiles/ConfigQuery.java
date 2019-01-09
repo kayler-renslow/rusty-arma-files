@@ -11,15 +11,10 @@ import java.util.*;
  @since 01/08/2019 */
 public class ConfigQuery {
 
-	public enum MatchType {
-		ClassName, Field
-	}
-
 	private QueryNode queryRootNode;
 	private final String query;
 
 	public ConfigQuery(@NotNull String query) {
-
 		this.query = query;
 	}
 
@@ -36,7 +31,7 @@ public class ConfigQuery {
 			throw new IllegalStateException();
 		}
 		Stack<QueryNode> queryNodeStack = new Stack<>();
-		Stack<Node> resultNodeStack = new Stack<>();
+		Stack<ResultNode> resultNodeStack = new Stack<>();
 
 		ResultRootNode resultRootNode = new ResultRootNode();
 		resultNodeStack.push(resultRootNode);
@@ -45,7 +40,7 @@ public class ConfigQuery {
 
 		while (stream.hasNext()) {
 			ConfigStreamItem advancedItem = stream.advance();
-			Node resultNode = resultNodeStack.peek();
+			ResultNode resultNode = resultNodeStack.peek();
 			QueryNode queryNode = queryNodeStack.peek();
 			switch (advancedItem.getType()) {
 				case Class: {
@@ -54,7 +49,7 @@ public class ConfigQuery {
 					}
 					ConfigStreamItem.ClassItem classItem = (ConfigStreamItem.ClassItem) advancedItem;
 					if (queryNode.classNameMatches(classItem.getClassName())) {
-						ClassNode classNode = new ClassNode(classItem.getClassName());
+						ClassResultNode classNode = new ClassResultNode(classItem.getClassName());
 						resultNode.putChildClassNode(classNode);
 					}
 					break;
@@ -69,7 +64,7 @@ public class ConfigQuery {
 						queryNodeStack.push(SKIP);
 						break;
 					}
-					ClassNode child = new ClassNode(classItem.getClassName());
+					ClassResultNode child = new ClassResultNode(classItem.getClassName());
 					resultNodeStack.push(child);
 					queryNodeStack.push(queryNode);
 					break;
@@ -108,6 +103,7 @@ public class ConfigQuery {
 		public ConfigQuery.QueryNode parse() throws ParseException {
 			int rbracketCount = 0;
 			int lbracketCount = 0;
+			boolean anticipateOperator = false;
 
 			int wordStartIndex = 0;
 			int wordLength = 0;
@@ -122,12 +118,14 @@ public class ConfigQuery {
 			for (int i = 0; i < query.length(); i++) {
 				char c = query.charAt(i);
 				if (Character.isWhitespace(c)) {
-					throw new ParseException("whitespace not allowed", i);
+					anticipateOperator = true;
+					continue;
 				}
 				if (c == '{') {
 					if (wordLength <= 0) {
 						throw new ParseException("missing class name", i);
 					}
+					anticipateOperator = false;
 					QueryNode node = null;
 					if (wordLength == 1) {
 						if (query.charAt(wordStartIndex) == '*') {
@@ -153,6 +151,7 @@ public class ConfigQuery {
 					if (wordLength <= 0) {
 						throw new ParseException("missing assignment name", i);
 					}
+					anticipateOperator = false;
 					String word = query.substring(wordStartIndex, wordLength + 1);
 					if (nodeStack.isEmpty()) {
 						/* example config where this happens
@@ -174,14 +173,18 @@ public class ConfigQuery {
 					wordLength = 0;
 					wordStartIndex = i + 1;
 				} else if (c == '}') {
-					rbracketCount++;
 					if (lbracketCount < rbracketCount) {
 						throw new ParseException("unexpected }", i);
 					}
+					anticipateOperator = false;
+					rbracketCount++;
 					wordLength = 0;
 					wordStartIndex = i + 1;
 					nodeStack.pop();
 				} else {
+					if (anticipateOperator) {
+						throw new ParseException("Expected bracket or comma but got whitespace", i);
+					}
 					wordLength++;
 				}
 			}
@@ -200,13 +203,13 @@ public class ConfigQuery {
 		}
 	}
 
-	private static class Node {
-		private final Map<String, String> assignments = new HashMap<>();
-		private final Map<String, ClassNode> classes = new HashMap<>();
+	private static class ResultNode {
+		private final Map<String, ConfigValue> assignments = new HashMap<>();
+		private final Map<String, ClassResultNode> classes = new HashMap<>();
 
 		@NotNull
-		public String getAssignmentValue(@NotNull String key) {
-			String val = assignments.get(key);
+		public ConfigValue getAssignmentValue(@NotNull String key) {
+			ConfigValue val = assignments.get(key);
 			if (val == null) {
 				throw new IllegalArgumentException();
 			}
@@ -214,8 +217,8 @@ public class ConfigQuery {
 		}
 
 		@NotNull
-		public ConfigQuery.ClassNode getClassNode(@NotNull String key) {
-			ClassNode node = classes.get(key);
+		public ConfigQuery.ClassResultNode getClassNode(@NotNull String key) {
+			ClassResultNode node = classes.get(key);
 
 			if (node == null) {
 				throw new IllegalArgumentException();
@@ -224,19 +227,19 @@ public class ConfigQuery {
 			return node;
 		}
 
-		void putAssignment(@NotNull String key, @NotNull String value) {
+		void putAssignment(@NotNull String key, @NotNull ConfigValue value) {
 			assignments.put(key, value);
 		}
 
-		void putChildClassNode(@NotNull ConfigQuery.ClassNode node) {
+		void putChildClassNode(@NotNull ConfigQuery.ClassResultNode node) {
 			classes.put(node.className, node);
 		}
 	}
 
-	public static class ClassNode extends Node {
+	public static class ClassResultNode extends ResultNode {
 		private final String className;
 
-		public ClassNode(@NotNull String className) {
+		public ClassResultNode(@NotNull String className) {
 			this.className = className;
 		}
 
@@ -246,7 +249,7 @@ public class ConfigQuery {
 		}
 	}
 
-	public static class ResultRootNode extends Node {
+	public static class ResultRootNode extends ResultNode {
 
 	}
 
