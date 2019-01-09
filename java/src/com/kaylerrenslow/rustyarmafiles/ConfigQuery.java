@@ -5,6 +5,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.text.ParseException;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  @author K
@@ -327,6 +328,16 @@ public class ConfigQuery {
 			QueryNode child = new QueryNode();
 			for (String name : names) {
 				parent.children.put(name, child);
+			}
+			return this;
+		}
+
+		@NotNull
+		public ConfigQueryPatternBuilder matchClassesAndForEach(@NotNull Consumer<ConfigQueryPatternBuilder> visitor, @NotNull String... names) {
+			for (String name : names) {
+				ConfigQueryPatternBuilder builder = new ConfigQueryPatternBuilder(new QueryNode(), this, startBuilder);
+				parent.children.put(name, builder.parent);
+				visitor.accept(builder);
 			}
 			return this;
 		}
