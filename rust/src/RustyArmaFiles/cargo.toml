@@ -1,0 +1,6 @@
+[package]
+name = "RustyArmaFiles"
+version = "0.1.0"
+authors = ["Kayler Renslow <github.com/kayler-renslow>"]
+
+[dependencies]
