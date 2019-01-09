@@ -151,13 +151,13 @@ public class ConfigQuery {
 				wordLength++;
 				expectWord = false;
 			}
-			if(expectOperator) {
+			if (expectOperator) {
 				throw new ParseException("Unexpected >", query.length());
 			}
-			if(expectWord) {
+			if (expectWord) {
 				throw new ParseException("Expected a word", query.length());
 			}
-			if(wordLength > 0) {
+			if (wordLength > 0) {
 				String word = query.substring(wordStartIndex, wordLength + 1);
 
 				//match either class or assignment since the >> in arma 3 matches entry name and doesn't care about type
@@ -269,24 +269,42 @@ public class ConfigQuery {
 	}
 
 	private static class ResultNode {
-		final Map<String, ConfigFieldValue> assignments = new HashMap<>();
-		final Map<String, ClassResultNode> classes = new HashMap<>();
+		private Map<String, ConfigFieldValue> assignments;
+		private Map<String, ClassResultNode> classes;
 
 		@Nullable
 		public ConfigFieldValue getAssignmentValue(@NotNull String key) {
-			return assignments.get(key);
+			return assignments == null ? null :  assignments.get(key);
 		}
 
 		@Nullable
 		public ConfigQuery.ClassResultNode getClassNode(@NotNull String key) {
-			return classes.get(key);
+			return classes == null ? null : classes.get(key);
+		}
+
+		@Nullable
+		public Iterator<Map.Entry<String, ConfigFieldValue>> iterateAssignments(){
+			return assignments == null ? null : assignments.entrySet().iterator();
+		}
+
+		@Nullable
+		public Iterator<Map.Entry<String, ClassResultNode>> iterateClasses(){
+			return classes == null ? null : classes.entrySet().iterator();
 		}
 
 		void putAssignment(@NotNull String key, @NotNull ConfigFieldValue value) {
+			if (assignments == null) {
+				//lazy initialization to save memory
+				assignments = new HashMap<>();
+			}
 			assignments.put(key, value);
 		}
 
 		void putChildClassNode(@NotNull ConfigQuery.ClassResultNode node) {
+			if (classes == null) {
+				//lazy initialization to save memory
+				classes = new HashMap<>();
+			}
 			classes.put(node.className, node);
 		}
 	}
@@ -344,6 +362,7 @@ public class ConfigQuery {
 
 		public void addChildClass(@NotNull String className, @NotNull QueryNode node) {
 			children.put(className, node);
+			classNames.add(className);
 		}
 
 		public void addAssignmentToMatch(@NotNull String key) {
