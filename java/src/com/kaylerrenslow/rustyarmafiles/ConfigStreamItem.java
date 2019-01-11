@@ -7,7 +7,7 @@ import org.jetbrains.annotations.NotNull;
  @since 01/08/2019 */
 public interface ConfigStreamItem {
 	enum Type {
-		Class, EndClass, Field, ClassSkipDone, EndStream
+		Class, EndClass, Field, EndStream
 	}
 
 	@NotNull Type getType();
@@ -56,19 +56,6 @@ public interface ConfigStreamItem {
 		@NotNull
 		public Type getType() {
 			return Type.EndClass;
-		}
-	}
-
-	class ClassSkipDoneMarker implements ConfigStreamItem {
-		public static final ClassSkipDoneMarker INSTANCE = new ClassSkipDoneMarker();
-
-		private ClassSkipDoneMarker() {
-		}
-
-		@Override
-		@NotNull
-		public Type getType() {
-			return Type.ClassSkipDone;
 		}
 	}
 

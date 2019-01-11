@@ -85,14 +85,11 @@ public class ConfigQuery {
 						}
 						break;
 					}
-					case ClassSkipDone: {
+					case EndClass: {
 						if (querySkipClass) {
 							querySkipClass = false;
 							break;
 						}
-						return nextItem;
-					}
-					case EndClass: {
 						queryNodeStack.pop();
 						return nextItem;
 					}
