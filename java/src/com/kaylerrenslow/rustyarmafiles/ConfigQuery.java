@@ -292,65 +292,6 @@ public class ConfigQuery {
 			return new CompiledQuery(rootNode);
 		}
 	}
-//
-//	private static class ResultNode {
-//		private Map<String, ConfigFieldValue> assignments;
-//		private Map<String, ClassResultNode> classes;
-//
-//		@Nullable
-//		public ConfigFieldValue getAssignmentValue(@NotNull String key) {
-//			return assignments == null ? null :  assignments.get(key);
-//		}
-//
-//		@Nullable
-//		public ConfigQuery.ClassResultNode getClassNode(@NotNull String key) {
-//			return classes == null ? null : classes.get(key);
-//		}
-//
-//		@Nullable
-//		public Iterator<Map.Entry<String, ConfigFieldValue>> iterateAssignments(){
-//			return assignments == null ? null : assignments.entrySet().iterator();
-//		}
-//
-//		@Nullable
-//		public Iterator<Map.Entry<String, ClassResultNode>> iterateClasses(){
-//			return classes == null ? null : classes.entrySet().iterator();
-//		}
-//
-//		void putAssignment(@NotNull String key, @NotNull ConfigFieldValue value) {
-//			if (assignments == null) {
-//				//lazy initialization to save memory
-//				assignments = new HashMap<>();
-//			}
-//			assignments.put(key, value);
-//		}
-//
-//		void putChildClassNode(@NotNull ConfigQuery.ClassResultNode node) {
-//			if (classes == null) {
-//				//lazy initialization to save memory
-//				classes = new HashMap<>();
-//			}
-//			classes.put(node.className, node);
-//		}
-//	}
-//
-//	public static class ClassResultNode extends ResultNode {
-//		private final String className;
-//
-//		public ClassResultNode(@NotNull String className) {
-//			this.className = className;
-//		}
-//
-//		@NotNull
-//		public String getClassName() {
-//			return className;
-//		}
-//	}
-//
-//
-//	public static class ResultRootNode extends ResultNode {
-//
-//	}
 
 	public static class CompiledQuery {
 		private final QueryNode node;
@@ -370,7 +311,6 @@ public class ConfigQuery {
 		private final Set<String> assignments = new HashSet<>();
 		private boolean matchAllAssignments = false;
 		private boolean matchAllClasses = false;
-
 
 		public QueryNode() {
 		}
