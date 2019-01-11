@@ -29,68 +29,93 @@ public class ConfigQuery {
 	}
 
 	@NotNull
-	public ResultRootNode query(@NotNull ConfigStream stream) {
+	public ConfigStream query(@NotNull ConfigStream stream) {
 		if (queryRootNode == null) {
 			throw new IllegalStateException();
 		}
-		Stack<QueryNode> queryNodeStack = new Stack<>();
-		Stack<ResultNode> resultNodeStack = new Stack<>();
+		return new QueryResultConfigStream(stream, queryRootNode);
+	}
 
-		ResultRootNode resultRootNode = new ResultRootNode();
-		resultNodeStack.push(resultRootNode);
+	private static final class QueryResultConfigStream implements ConfigStream {
 
-		queryNodeStack.push(queryRootNode);
+		private final ConfigStream src;
+		private final Stack<QueryNode> queryNodeStack = new Stack<>();
+		private boolean querySkipClass = false;
 
-		boolean skipClass = false;
+		public QueryResultConfigStream(@NotNull ConfigStream src, @NotNull QueryNode root) {
+			this.src = src;
+			queryNodeStack.push(root);
+		}
 
-		while (stream.hasNext()) {
-			if (skipClass) {
-				skipClass = false;
-				stream.skipCurrentClass();
-				continue;
-			}
-			ConfigStreamItem advancedItem = stream.next();
-			ResultNode resultNode = resultNodeStack.peek();
-			QueryNode queryNode = queryNodeStack.peek();
-			switch (advancedItem.getType()) {
-				// stream will always read assignments first,
-				// then for each embedded class: read those assignments first, etc (recursion man)
-				case Class: {
-					ConfigStreamItem.ClassItem classItem = (ConfigStreamItem.ClassItem) advancedItem;
-					if (queryNode.containsClassName(classItem.getClassName())) {
-						ClassResultNode classNode = new ClassResultNode(classItem.getClassName());
-						resultNode.putChildClassNode(classNode);
-					}
-					queryNode = queryNode.childQueryNode(classItem.getClassName());
-					if (queryNode == null) {
-						skipClass = true;
+		@Override
+		@NotNull
+		public ConfigStreamItem next() throws IllegalStateException {
+			while (src.hasNext()) { //loop until a match
+				ConfigStreamItem nextItem = src.next();
+				QueryNode queryNode = queryNodeStack.peek();
+
+				switch (nextItem.getType()) {
+					// Stream will always read assignments first,
+					// then for each embedded class: read those assignments first, etc (recursion man).
+					case Class: {
+						ConfigStreamItem.ClassItem classItem = (ConfigStreamItem.ClassItem) nextItem;
+						// No need to check if the class is the root class because it won't be returned as a ClassItem
+						// and instead will immediately just stream the fields.
+						final boolean match = queryNode.containsClassName(classItem.getClassName());
+						if (match) {
+							QueryNode nextNode = queryNode.childQueryNode(classItem.getClassName());
+							if (queryNode.isMatchAllClasses()) {
+								if (nextNode == null) {
+									nextNode = queryNode.childQueryNode("*");
+								}
+							} else {
+								throw new IllegalStateException(); //how??
+							}
+							queryNodeStack.push(nextNode);
+							return nextItem;
+						}
+						querySkipClass = true;
+						src.skipCurrentClass();
 						break;
 					}
-					resultNodeStack.push(resultNode);
-					queryNodeStack.push(queryNode);
-					break;
-				}
-				case Assignment: {
-					ConfigStreamItem.AssignmentItem item = (ConfigStreamItem.AssignmentItem) advancedItem;
-					if (queryNode.containsAssignmentKey(item.getKey())) {
-						resultNode.putAssignment(item.getKey(), item.getValue());
+					case Field: {
+						ConfigStreamItem.FieldItem item = (ConfigStreamItem.FieldItem) nextItem;
+						if (queryNode.containsAssignmentKey(item.getKey())) {
+							return nextItem;
+						}
+						break;
 					}
-					break;
-				}
-				case ClassSkipDone: {
-					break;
-				}
-				case EndClass: {
-					resultNodeStack.pop();
-					queryNodeStack.pop();
-					break;
-				}
-				default: {
-					throw new IllegalStateException();
+					case ClassSkipDone: {
+						if (querySkipClass) {
+							querySkipClass = false;
+							break;
+						}
+						return nextItem;
+					}
+					case EndClass: {
+						queryNodeStack.pop();
+						return nextItem;
+					}
+					case EndStream: {
+						return nextItem;
+					}
+					default: {
+						throw new IllegalStateException();
+					}
 				}
 			}
+			return ConfigStreamItem.EndStreamItem.INSTANCE;
 		}
-		return resultRootNode;
+
+		@Override
+		public boolean hasNext() {
+			return src.hasNext();
+		}
+
+		@Override
+		public void skipCurrentClass() {
+			src.skipCurrentClass();
+		}
 	}
 
 	private static class ArmaFormatQueryParser {
@@ -267,65 +292,65 @@ public class ConfigQuery {
 			return new CompiledQuery(rootNode);
 		}
 	}
-
-	private static class ResultNode {
-		private Map<String, ConfigFieldValue> assignments;
-		private Map<String, ClassResultNode> classes;
-
-		@Nullable
-		public ConfigFieldValue getAssignmentValue(@NotNull String key) {
-			return assignments == null ? null :  assignments.get(key);
-		}
-
-		@Nullable
-		public ConfigQuery.ClassResultNode getClassNode(@NotNull String key) {
-			return classes == null ? null : classes.get(key);
-		}
-
-		@Nullable
-		public Iterator<Map.Entry<String, ConfigFieldValue>> iterateAssignments(){
-			return assignments == null ? null : assignments.entrySet().iterator();
-		}
-
-		@Nullable
-		public Iterator<Map.Entry<String, ClassResultNode>> iterateClasses(){
-			return classes == null ? null : classes.entrySet().iterator();
-		}
-
-		void putAssignment(@NotNull String key, @NotNull ConfigFieldValue value) {
-			if (assignments == null) {
-				//lazy initialization to save memory
-				assignments = new HashMap<>();
-			}
-			assignments.put(key, value);
-		}
-
-		void putChildClassNode(@NotNull ConfigQuery.ClassResultNode node) {
-			if (classes == null) {
-				//lazy initialization to save memory
-				classes = new HashMap<>();
-			}
-			classes.put(node.className, node);
-		}
-	}
-
-	public static class ClassResultNode extends ResultNode {
-		private final String className;
-
-		public ClassResultNode(@NotNull String className) {
-			this.className = className;
-		}
-
-		@NotNull
-		public String getClassName() {
-			return className;
-		}
-	}
-
-
-	public static class ResultRootNode extends ResultNode {
-
-	}
+//
+//	private static class ResultNode {
+//		private Map<String, ConfigFieldValue> assignments;
+//		private Map<String, ClassResultNode> classes;
+//
+//		@Nullable
+//		public ConfigFieldValue getAssignmentValue(@NotNull String key) {
+//			return assignments == null ? null :  assignments.get(key);
+//		}
+//
+//		@Nullable
+//		public ConfigQuery.ClassResultNode getClassNode(@NotNull String key) {
+//			return classes == null ? null : classes.get(key);
+//		}
+//
+//		@Nullable
+//		public Iterator<Map.Entry<String, ConfigFieldValue>> iterateAssignments(){
+//			return assignments == null ? null : assignments.entrySet().iterator();
+//		}
+//
+//		@Nullable
+//		public Iterator<Map.Entry<String, ClassResultNode>> iterateClasses(){
+//			return classes == null ? null : classes.entrySet().iterator();
+//		}
+//
+//		void putAssignment(@NotNull String key, @NotNull ConfigFieldValue value) {
+//			if (assignments == null) {
+//				//lazy initialization to save memory
+//				assignments = new HashMap<>();
+//			}
+//			assignments.put(key, value);
+//		}
+//
+//		void putChildClassNode(@NotNull ConfigQuery.ClassResultNode node) {
+//			if (classes == null) {
+//				//lazy initialization to save memory
+//				classes = new HashMap<>();
+//			}
+//			classes.put(node.className, node);
+//		}
+//	}
+//
+//	public static class ClassResultNode extends ResultNode {
+//		private final String className;
+//
+//		public ClassResultNode(@NotNull String className) {
+//			this.className = className;
+//		}
+//
+//		@NotNull
+//		public String getClassName() {
+//			return className;
+//		}
+//	}
+//
+//
+//	public static class ResultRootNode extends ResultNode {
+//
+//	}
 
 	public static class CompiledQuery {
 		private final QueryNode node;
@@ -346,7 +371,6 @@ public class ConfigQuery {
 		private boolean matchAllAssignments = false;
 		private boolean matchAllClasses = false;
 
-		private final Set<String> classNames = new HashSet<>();
 
 		public QueryNode() {
 		}
@@ -357,12 +381,11 @@ public class ConfigQuery {
 		}
 
 		public boolean containsClassName(@NotNull String key) {
-			return matchAllClasses || classNames.contains(key);
+			return matchAllClasses || children.containsKey(key);
 		}
 
 		public void addChildClass(@NotNull String className, @NotNull QueryNode node) {
 			children.put(className, node);
-			classNames.add(className);
 		}
 
 		public void addAssignmentToMatch(@NotNull String key) {
@@ -375,6 +398,10 @@ public class ConfigQuery {
 
 		public void matchAllClasses() {
 			this.matchAllClasses = true;
+		}
+
+		public boolean isMatchAllClasses() {
+			return matchAllClasses;
 		}
 
 		public boolean containsAssignmentKey(@NotNull String key) {

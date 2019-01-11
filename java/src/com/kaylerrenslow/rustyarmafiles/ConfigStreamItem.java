@@ -7,10 +7,24 @@ import org.jetbrains.annotations.NotNull;
  @since 01/08/2019 */
 public interface ConfigStreamItem {
 	enum Type {
-		Class, EndClass, Assignment, ClassSkipDone
+		Class, EndClass, Field, ClassSkipDone, EndStream
 	}
 
 	@NotNull Type getType();
+
+	class EndStreamItem implements ConfigStreamItem {
+
+		public static final EndStreamItem INSTANCE = new EndStreamItem();
+
+		private EndStreamItem() {
+		}
+
+		@Override
+		@NotNull
+		public Type getType() {
+			return Type.EndStream;
+		}
+	}
 
 	class ClassItem implements ConfigStreamItem {
 
@@ -58,11 +72,11 @@ public interface ConfigStreamItem {
 		}
 	}
 
-	class AssignmentItem implements ConfigStreamItem {
+	class FieldItem implements ConfigStreamItem {
 		private final String key;
 		private final ConfigFieldValue value;
 
-		public AssignmentItem(@NotNull String key, @NotNull ConfigFieldValue value) {
+		public FieldItem(@NotNull String key, @NotNull ConfigFieldValue value) {
 			this.key = key;
 			this.value = value;
 		}
@@ -80,7 +94,7 @@ public interface ConfigStreamItem {
 		@Override
 		@NotNull
 		public Type getType() {
-			return Type.Assignment;
+			return Type.Field;
 		}
 	}
 }

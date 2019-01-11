@@ -8,8 +8,6 @@ import org.jetbrains.annotations.Nullable;
  @since 01/08/2019 */
 public interface ConfigClass {
 	@NotNull String getClassName();
-	int getEmbeddedClassesCount();
-	int getAssignmentCount();
 	@NotNull ConfigStream newStream();
 
 	@Nullable ConfigClass getClass(@NotNull String className);

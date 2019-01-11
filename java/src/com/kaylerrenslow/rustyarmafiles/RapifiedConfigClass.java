@@ -20,16 +20,6 @@ public class RapifiedConfigClass implements ConfigClass {
 	}
 
 	@Override
-	public int getEmbeddedClassesCount() {
-		return 0;
-	}
-
-	@Override
-	public int getAssignmentCount() {
-		return 0;
-	}
-
-	@Override
 	@NotNull
 	public ConfigStream newStream(){
 		return new RapifiedConfigClassStream(this);
