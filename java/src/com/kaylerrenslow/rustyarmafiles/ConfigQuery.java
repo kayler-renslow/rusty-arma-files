@@ -24,8 +24,8 @@ public class ConfigQuery {
 	}
 
 	@NotNull
-	public static CompiledQuery parseArmaFormatQuery(@NotNull String query) throws ParseException {
-		return new ArmaFormatQueryParser(query).parse();
+	public static CompiledQuery parseArmaFormatQuery(@NotNull String query, boolean allowIncomplete) throws ParseException {
+		return new ArmaFormatQueryParser(query).parse(allowIncomplete);
 	}
 
 	@NotNull
@@ -80,7 +80,7 @@ public class ConfigQuery {
 					}
 					case Field: {
 						ConfigStreamItem.FieldItem item = (ConfigStreamItem.FieldItem) nextItem;
-						if (queryNode.containsAssignmentKey(item.getKey())) {
+						if (queryNode.containsFieldKey(item.getKey())) {
 							return nextItem;
 						}
 						break;
@@ -126,7 +126,7 @@ public class ConfigQuery {
 		}
 
 		@NotNull
-		public CompiledQuery parse() throws ParseException {
+		public CompiledQuery parse(boolean allowIncomplete) throws ParseException {
 			int wordLength = 0;
 			int wordStartIndex = 0;
 			boolean expectOperator = true;
@@ -162,7 +162,11 @@ public class ConfigQuery {
 						QueryNode oldNode = currentNode;
 						currentNode = new QueryNode();
 						oldNode.addChildClass(word, currentNode);
-						oldNode.addAssignmentToMatch(word);
+						oldNode.addFieldToMatch(word);
+						if (allowIncomplete && word.charAt(word.length() - 1) == '?') {
+							oldNode.matchIncompleteClassNames();
+							oldNode.matchIncompleteFieldKeys();
+						}
 						expectWord = true;
 					} else {
 						expectOperator = true;
@@ -170,7 +174,7 @@ public class ConfigQuery {
 					}
 					continue;
 				}
-				if (!Character.isAlphabetic(c)) {
+				if (!Character.isAlphabetic(c) && !(allowIncomplete && c == '?')) {
 					throw new ParseException("Unexpected token: " + c, i);
 				}
 				wordLength++;
@@ -187,7 +191,7 @@ public class ConfigQuery {
 
 				//match either class or assignment since the >> in arma 3 matches entry name and doesn't care about type
 				currentNode.addChildClass(word, currentNode);
-				currentNode.addAssignmentToMatch(word);
+				currentNode.addFieldToMatch(word);
 			}
 			return new CompiledQuery(start);
 		}
@@ -235,6 +239,8 @@ public class ConfigQuery {
 					QueryNode peek = nodeStack.peek();
 					if (word.equals("*")) {
 						peek.matchAllClasses();
+					} else if (word.charAt(word.length() - 1) == '?') {
+						peek.matchIncompleteClassNames();
 					}
 					QueryNode node = new QueryNode();
 					peek.addChildClass(word, node);
@@ -251,9 +257,12 @@ public class ConfigQuery {
 					QueryNode peek = nodeStack.peek();
 					String word = query.substring(wordStartIndex, wordLength + 1);
 					if (word.equals("*")) {
-						peek.matchAllAssignments();
+						peek.matchAllFields();
 					} else {
-						peek.addAssignmentToMatch(word);
+						if (word.charAt(word.length() - 1) == '?') {
+							peek.matchIncompleteFieldKeys();
+						}
+						peek.addFieldToMatch(word);
 					}
 
 					wordLength = 0;
@@ -271,7 +280,7 @@ public class ConfigQuery {
 					if (expectOperator) {
 						throw new ParseException("Expected bracket or comma but got whitespace", i);
 					}
-					if (!Character.isAlphabetic(c)) {
+					if (!Character.isAlphabetic(c) && c != '?') {
 						throw new ParseException("Unexpected token: " + c, i);
 					}
 					wordLength++;
@@ -283,10 +292,10 @@ public class ConfigQuery {
 			QueryNode rootNode = nodeStack.peek();
 			if (wordLength > 0) {
 				if (query.equals("*")) {
-					rootNode.matchAllAssignments();
+					rootNode.matchAllFields();
 				} else {
 					//don't add whole query because there may be whitespace
-					rootNode.addAssignmentToMatch(query.substring(wordStartIndex, wordLength + 1));
+					rootNode.addFieldToMatch(query.substring(wordStartIndex, wordLength + 1));
 				}
 			}
 			return new CompiledQuery(rootNode);
@@ -308,16 +317,19 @@ public class ConfigQuery {
 
 	private static class QueryNode {
 		private final Map<String, QueryNode> children = new HashMap<>();
-		private final Set<String> assignments = new HashSet<>();
-		private boolean matchAllAssignments = false;
+		private final Set<String> fields = new HashSet<>();
+		private boolean matchAllFields = false;
 		private boolean matchAllClasses = false;
-
-		public QueryNode() {
-		}
+		private boolean matchIncompleteClassNames = false;
+		private boolean matchIncompleteFieldKeys = false;
 
 		@Nullable
-		public QueryNode childQueryNode(@NotNull String key) {
-			return children.get(key);
+		public QueryNode childQueryNode(@NotNull String className) {
+			if (matchIncompleteClassNames) {
+				Map.Entry<String, QueryNode> match = matchIncompleteClassName(className);
+				return match == null ? null : match.getValue();
+			}
+			return children.get(className);
 		}
 
 		public boolean containsClassName(@NotNull String key) {
@@ -328,12 +340,12 @@ public class ConfigQuery {
 			children.put(className, node);
 		}
 
-		public void addAssignmentToMatch(@NotNull String key) {
-			assignments.add(key);
+		public void addFieldToMatch(@NotNull String key) {
+			fields.add(key);
 		}
 
-		public void matchAllAssignments() {
-			this.matchAllAssignments = true;
+		public void matchAllFields() {
+			this.matchAllFields = true;
 		}
 
 		public void matchAllClasses() {
@@ -344,8 +356,37 @@ public class ConfigQuery {
 			return matchAllClasses;
 		}
 
-		public boolean containsAssignmentKey(@NotNull String key) {
-			return matchAllAssignments || assignments.contains(key);
+		public void matchIncompleteClassNames() {
+			this.matchIncompleteClassNames = true;
+		}
+
+		public void matchIncompleteFieldKeys() {
+			this.matchIncompleteFieldKeys = true;
+		}
+
+		public boolean containsFieldKey(@NotNull String key) {
+			if (matchAllFields) {
+				return true;
+			}
+			if (matchIncompleteFieldKeys) {
+				for (String fieldKey : fields) {
+					if (key.contains(fieldKey)) {
+						return true;
+					}
+				}
+				return false;
+			}
+			return fields.contains(key);
+		}
+
+		@Nullable
+		private Map.Entry<String, QueryNode> matchIncompleteClassName(@NotNull String className) {
+			for (Map.Entry<String, QueryNode> incompleteClassNameEntry : children.entrySet()) {
+				if (className.contains(incompleteClassNameEntry.getKey())) {
+					return incompleteClassNameEntry;
+				}
+			}
+			return null;
 		}
 	}
 
@@ -420,21 +461,21 @@ public class ConfigQuery {
 
 		@NotNull
 		public ConfigQuery.ConfigQueryBuilder matchAssignment(@NotNull String name) {
-			parent.assignments.add(name);
+			parent.fields.add(name);
 			return this;
 		}
 
 		@NotNull
 		public ConfigQuery.ConfigQueryBuilder matchAssignments(@NotNull String... names) {
 			for (String name : names) {
-				parent.assignments.add(name);
+				parent.fields.add(name);
 			}
 			return this;
 		}
 
 		@NotNull
 		public ConfigQuery.ConfigQueryBuilder matchAllAssignments() {
-			parent.matchAllAssignments();
+			parent.matchAllFields();
 			return this;
 		}
 
