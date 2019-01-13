@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
  @since 01/08/2019 */
 public class RapifiedConfigFileStream implements ConfigStream {
 	private final RapifiedConfigFile file;
-	private int currentOffset = -1;
+	private int currentEntryOffset = -1;
 
 	public RapifiedConfigFileStream(@NotNull RapifiedConfigFile file) {
 		this.file = file;

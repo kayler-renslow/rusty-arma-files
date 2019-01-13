@@ -20,6 +20,19 @@ public interface ConfigFieldValue {
 		}
 	}
 
+	class Text implements ConfigFieldValue {
+		private final String text;
+
+		public Text(@NotNull String text) {
+			this.text = text;
+		}
+
+		@NotNull
+		public String getText() {
+			return text;
+		}
+	}
+
 	class Array implements ConfigFieldValue {
 		private final Object[] values;
 
