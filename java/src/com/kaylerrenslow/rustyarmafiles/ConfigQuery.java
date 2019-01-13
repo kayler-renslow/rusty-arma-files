@@ -28,7 +28,8 @@ public class ConfigQuery {
 
 	/**
 	 Parses an Arma format query. Eg. ConfigFile>>"CfgVehicles">>"AVehicle".
-	 The parser doesn't need quotes around each item. The parser also has the option for incomplete names.
+	 The parser doesn't need quotes around each item and supports double quotes and single quotes.
+	 The parser also has the option for incomplete names.
 	 Use ? to denote that the name is incomplete and should match the first class/field with the name up to the ?.
 	 Example:
 	 Query: Thing>>Thing? will match Thing>>Thing, Thing>>Thing2, Thing>>ThingThing, etc
@@ -171,6 +172,15 @@ public class ConfigQuery {
 					if (bracketCount == 2) {
 						expectOperator = false;
 						String word = query.substring(wordStartIndex, wordLength + 1);
+						final char endChar = word.charAt(word.length() - 1);
+						final char startChar = word.charAt(0);
+						if (startChar == '"' || endChar == '"' || startChar == '\'' || endChar == '\'') {
+							if (startChar != endChar) {
+								throw new ParseException("Missing a \" or ' somewhere", i);
+							}
+							//remove quotes
+							word = word.substring(1, word.length() - 1);
+						}
 
 						//match either class or assignment since the >> in arma 3 matches entry name and doesn't care about type
 						QueryNode oldNode = currentNode;
