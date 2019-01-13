@@ -4,10 +4,18 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  @author K
+ @see ConfigStream
  @since 01/08/2019 */
 public interface ConfigStreamItem {
 	enum Type {
-		Class, EndClass, Field, EndStream
+		/** Used to denote the start of a new class */
+		Class,
+		/** A marker for denoting the end of a class (always comes after {@link #Class}) */
+		EndClass,
+		/** Used to denote a field has been discovered */
+		Field,
+		/** A marker used for denoting the end of the {@link ConfigStream} has been reached */
+		EndStream
 	}
 
 	@NotNull Type getType();

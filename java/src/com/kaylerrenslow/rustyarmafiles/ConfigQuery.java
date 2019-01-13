@@ -8,11 +8,14 @@ import java.util.*;
 import java.util.function.Consumer;
 
 /**
+ This class is used for filtering through an existing {@link ConfigStream} and returning only {@link ConfigStreamItem}'s
+ that match a query.
+
  @author K
  @since 01/08/2019 */
 public class ConfigQuery {
 
-	private QueryNode queryRootNode;
+	private final QueryNode queryRootNode;
 
 	public ConfigQuery(@NotNull ConfigQuery.CompiledQuery query) {
 		this.queryRootNode = query.getNode();
@@ -23,6 +26,18 @@ public class ConfigQuery {
 		return new PatternParser(query).parse();
 	}
 
+	/**
+	 Parses an Arma format query. Eg. ConfigFile>>"CfgVehicles">>"AVehicle".
+	 The parser doesn't need quotes around each item. The parser also has the option for incomplete names.
+	 Use ? to denote that the name is incomplete and should match the first class/field with the name up to the ?.
+	 Example:
+	 Query: Thing>>Thing? will match Thing>>Thing, Thing>>Thing2, Thing>>ThingThing, etc
+
+	 @param query           the query text
+	 @param allowIncomplete true if the query can match incomplete/partial names
+	 @return the compiled query
+	 @throws ParseException when the query couldn't be compiled
+	 */
 	@NotNull
 	public static CompiledQuery parseArmaFormatQuery(@NotNull String query, boolean allowIncomplete) throws ParseException {
 		return new ArmaFormatQueryParser(query).parse(allowIncomplete);

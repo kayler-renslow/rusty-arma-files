@@ -1,6 +1,7 @@
 package com.kaylerrenslow.rustyarmafiles;
 
 /**
+ @see ConfigStream
  @author K
  @since 01/13/2019 */
 public class ConfigStreamException extends Exception {

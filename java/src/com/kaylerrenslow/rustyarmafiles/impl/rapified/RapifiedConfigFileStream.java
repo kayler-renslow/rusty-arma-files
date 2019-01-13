@@ -1,6 +1,6 @@
 package com.kaylerrenslow.rustyarmafiles.impl.rapified;
 
-import com.kaylerrenslow.rustyarmafiles.ConfigStream;
+import com.kaylerrenslow.rustyarmafiles.ConfigFileStream;
 import com.kaylerrenslow.rustyarmafiles.ConfigStreamException;
 import com.kaylerrenslow.rustyarmafiles.ConfigStreamItem;
 import org.jetbrains.annotations.NotNull;
@@ -8,12 +8,11 @@ import org.jetbrains.annotations.NotNull;
 /**
  @author K
  @since 01/08/2019 */
-public class RapifiedConfigFileStream implements ConfigStream {
-	private final RapifiedConfigFile file;
+public class RapifiedConfigFileStream extends ConfigFileStream {
 	private int currentEntryOffset = -1;
 
 	public RapifiedConfigFileStream(@NotNull RapifiedConfigFile file) {
-		this.file = file;
+		super(file);
 	}
 
 	@Override
