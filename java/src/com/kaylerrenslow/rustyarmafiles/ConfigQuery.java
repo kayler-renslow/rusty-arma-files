@@ -248,7 +248,7 @@ public class ConfigQuery {
 					wordLength = 0;
 					wordStartIndex = i + 1;
 					lbracketCount++;
-				} else if (c == ',') {
+				} else if (c == ';') {
 					if (wordLength <= 0) {
 						throw new ParseException("missing assignment name", i);
 					}
