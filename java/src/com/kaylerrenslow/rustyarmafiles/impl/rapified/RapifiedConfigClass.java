@@ -1,5 +1,9 @@
-package com.kaylerrenslow.rustyarmafiles;
+package com.kaylerrenslow.rustyarmafiles.impl.rapified;
 
+import com.kaylerrenslow.rustyarmafiles.ConfigClass;
+import com.kaylerrenslow.rustyarmafiles.ConfigEntry;
+import com.kaylerrenslow.rustyarmafiles.ConfigFieldValue;
+import com.kaylerrenslow.rustyarmafiles.ConfigStream;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,7 +25,7 @@ public class RapifiedConfigClass implements ConfigClass {
 
 	@Override
 	@NotNull
-	public ConfigStream newStream(){
+	public ConfigStream newStream() {
 		return new RapifiedConfigClassStream(this);
 	}
 
@@ -32,4 +36,8 @@ public class RapifiedConfigClass implements ConfigClass {
 	@Override
 	@Nullable
 	public native ConfigFieldValue getFieldValue(@NotNull String key);
+
+	@Override
+	@Nullable
+	public native ConfigEntry getEntry(@NotNull String name);
 }

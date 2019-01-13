@@ -1,5 +1,7 @@
-package com.kaylerrenslow.rustyarmafiles;
+package com.kaylerrenslow.rustyarmafiles.impl.rapified;
 
+import com.kaylerrenslow.rustyarmafiles.ConfigStream;
+import com.kaylerrenslow.rustyarmafiles.ConfigStreamItem;
 import org.jetbrains.annotations.NotNull;
 
 /**
