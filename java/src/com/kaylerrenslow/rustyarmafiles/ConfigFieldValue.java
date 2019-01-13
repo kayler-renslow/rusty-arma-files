@@ -21,15 +21,26 @@ public interface ConfigFieldValue {
 	}
 
 	class Array implements ConfigFieldValue {
-		private final List<ConfigFieldValue> values;
+		private final Object[] values;
 
 		public Array(@NotNull List<ConfigFieldValue> values) {
-			this.values = values;
+			this.values = new Object[values.size()];
+			int i = 0;
+			for (ConfigFieldValue v : values) {
+				this.values[i++] = v;
+			}
+		}
+
+		public int getLength() {
+			return values.length;
 		}
 
 		@NotNull
-		public List<ConfigFieldValue> getValues() {
-			return values;
+		public ConfigFieldValue getValue(int i) {
+			if (i < 0 || i >= values.length) {
+				throw new IndexOutOfBoundsException(i);
+			}
+			return (ConfigFieldValue) values[i];
 		}
 	}
 }

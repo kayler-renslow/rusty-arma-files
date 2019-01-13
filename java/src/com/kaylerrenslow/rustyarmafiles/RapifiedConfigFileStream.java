@@ -7,6 +7,7 @@ import org.jetbrains.annotations.NotNull;
  @since 01/08/2019 */
 public class RapifiedConfigFileStream implements ConfigStream {
 	private final RapifiedConfigFile file;
+	private int currentOffset = -1;
 
 	public RapifiedConfigFileStream(@NotNull RapifiedConfigFile file) {
 		this.file = file;
@@ -14,7 +15,7 @@ public class RapifiedConfigFileStream implements ConfigStream {
 
 	@Override
 	@NotNull
-	public native ConfigStreamItem next() throws IllegalStateException;
+	public native ConfigStreamItem next() throws ConfigStreamException;
 
 	@Override
 	public native boolean hasNext();

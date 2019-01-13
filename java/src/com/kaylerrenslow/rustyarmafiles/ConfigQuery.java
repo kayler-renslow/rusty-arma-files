@@ -49,7 +49,7 @@ public class ConfigQuery {
 
 		@Override
 		@NotNull
-		public ConfigStreamItem next() throws IllegalStateException {
+		public ConfigStreamItem next() throws ConfigStreamException {
 			while (src.hasNext()) { //loop until a match
 				ConfigStreamItem nextItem = src.next();
 				QueryNode queryNode = queryNodeStack.peek();
@@ -71,8 +71,10 @@ public class ConfigQuery {
 							} else {
 								throw new IllegalStateException(); //how??
 							}
-							queryNodeStack.push(nextNode);
-							return nextItem;
+							if (nextNode != null) {
+								queryNodeStack.push(nextNode);
+								return nextItem;
+							}
 						}
 						querySkipClass = true;
 						src.skipCurrentClass();

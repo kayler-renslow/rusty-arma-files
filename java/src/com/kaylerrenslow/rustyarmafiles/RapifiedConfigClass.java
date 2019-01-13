@@ -31,5 +31,5 @@ public class RapifiedConfigClass implements ConfigClass {
 
 	@Override
 	@Nullable
-	public native ConfigFieldValue getAssignmentValue(@NotNull String key);
+	public native ConfigFieldValue getFieldValue(@NotNull String key);
 }
